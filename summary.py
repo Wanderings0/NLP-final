@@ -1,14 +1,44 @@
 import torch
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-from datasets import load_dataset
-from transformers import Trainer, TrainingArguments
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+from datasets import load_dataset, load_from_disk
+import evaluate
+from transformers import Trainer, TrainingArguments, EvalPrediction
 import wandb
+import os
+import numpy as np
+from sklearn.metrics import f1_score, accuracy_score
 
-summary_dataset = load_dataset("cnn_dailymail", "3.0.0")
+def set_seed(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+seed = 42
+set_seed(seed)
+
 model_name = "t5-base"
-model = T5ForConditionalGeneration.from_pretrained(model_name)
-tokenizer = T5Tokenizer.from_pretrained(model_name,model_max_length=1024,legacy=False)
-# 准备cnn_dailymail数据集，并将文本编码为模型能够处理的格式
+
+
+
+wandb.init(project="T5", name="samsum_t5")
+
+
+# 加载emotion数据集
+samsum_dataset = load_from_disk("./data/samsum")
+
+local_model_path = "./model/samsum_tuned_t5"
+cond_gen_model_dir = "./model/t5_samsum"
+twice = False
+if twice:
+    print("We fune-tune the model twice")
+    cond_gen_model_dir = "./model/emotion_tuned_t5"
+    local_model_path = "./model/gen_after_emotion_tuned_t5"
+
+model = T5ForConditionalGeneration(cond_gen_model_dir)
+tokenizer = T5Tokenizer.from_pretrained(cond_gen_model_dir, model_max_length=1024, legacy=False)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
 def summary_preprocess_function(examples):
     prefix = "summarize: "
     inputs = [prefix + doc for doc in examples["article"]]
@@ -19,18 +49,17 @@ def summary_preprocess_function(examples):
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-summary_encoded_dataset = summary_dataset.map(summary_preprocess_function, batched=True)
+summary_encoded_dataset = samsum_dataset.map(summary_preprocess_function, batched=True)
 
 # 更新训练参数，适用于新的数据集
 training_args = TrainingArguments(
     output_dir="./results",
     evaluation_strategy="epoch",
-    learning_rate=2e-5,
+    learning_rate=1e-4,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
-    num_train_epochs=3,
-    weight_decay=0.01,
-    push_to_hub=False,
+    num_train_epochs=1,
+    weight_decay=1e-4,
     logging_dir='./logs',
     logging_steps=1,
     report_to="wandb",
@@ -45,8 +74,12 @@ trainer = Trainer(
     tokenizer=tokenizer,
 )
 
-# 开始cnn_dailymail数据集的fine-tuning
-trainer.train()
 
-# 保存模型
-trainer.save_model("./summary_tuned_t5")
+
+trainer.train()
+# Make sure the training has finished
+trainer.save_model(local_model_path)
+tokenizer.save_pretrained(local_model_path)
+
+
+wandb.join()

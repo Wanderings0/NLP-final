@@ -1,3 +1,6 @@
 /wandb
 /results
 /cache
+/data
+/model
+/emotion_tuned_t5
