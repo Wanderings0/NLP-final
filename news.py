@@ -5,14 +5,17 @@ from transformers import Trainer, TrainingArguments, EvalPrediction
 import wandb
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
+import random
 
 def set_seed(seed):
-    np.random.seed(seed)
+    random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark=False
+    torch.backends.cudnn.deterministic=True
 
-seed = 42
+seed = 3072
 set_seed(seed)
 
 model_name = "t5-base"
@@ -22,7 +25,7 @@ model_name = "t5-base"
 label_map = {0:"World",1:"Sports",2:"Business",3:"Sci/Tech"}
 reverse_label_map = {value:key for key,value in label_map.items()}
 num_labels = len(label_map)
-wandb.init(project="T5", name="news_tuned_t5")
+wandb.init(project="T5", name="news_after_samsum_t5")
 
 
 # 加载emotion数据集
@@ -37,12 +40,18 @@ news_dataset["train"] = news_dataset["train"].shuffle(seed=42).select(range(trai
 local_model_path = "./model/news_tuned_t5"
 seq_class_model_dir = "./model/t5_seq_class"
 
-twice = False
+twice = True
 if twice:
     print("We fune-tune the model twice")
-    local_model_path = "./model/news_after_emotion_tuned_t5"
-    seq_class_model_dir = "./model/emotion_tuned_t5"
-    num_labels = 6
+    # after emotion fine-tuning
+    # local_model_path = "./model/news_after_emotion_tuned_t5"
+    # seq_class_model_dir = "./model/emotion_tuned_t5"
+    # num_labels = 6
+    # after samsum fine-tuning
+    local_model_path = "./model/news_after_samsum_tuned_t5"
+    seq_class_model_dir = "./model/samsum_tuned_t5"
+
+
 model = T5ForSequenceClassification.from_pretrained(seq_class_model_dir,num_labels=num_labels,ignore_mismatched_sizes=True)
 tokenizer = T5Tokenizer.from_pretrained(seq_class_model_dir, model_max_length=1024, legacy=False)
 
@@ -86,10 +95,10 @@ training_args = TrainingArguments(
     weight_decay=1e-4,
     push_to_hub=False,
     logging_dir='./logs',
-    logging_steps=1,
-    evaluation_strategy=8,
-    logging_strategy=8,
-    eval_steps=1,
+    logging_steps=8,
+    evaluation_strategy='steps',
+    logging_strategy='steps',
+    eval_steps=8,
     report_to="wandb",
     seed=3706,
     # load_best_model_at_end=True,
@@ -109,8 +118,8 @@ trainer = Trainer(
 # # 开始emotion数据集的fine-tuning
 trainer.train()
 # # Make sure the training has finished
-trainer.save_model(local_model_path)
-tokenizer.save_pretrained(local_model_path)
+# trainer.save_model(local_model_path)
+# tokenizer.save_pretrained(local_model_path)
 
 
 wandb.join()
