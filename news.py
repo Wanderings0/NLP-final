@@ -75,35 +75,6 @@ def compute_metrics(p: EvalPrediction):
     preds = np.argmax(softmax_logits.numpy(), axis=-1)
     return {"accuracy": accuracy_score(p.label_ids, preds), "f1": f1_score(p.label_ids, preds, average="macro")}
 
-from transformers.trainer_callback import TrainerCallback
-from transformers.trainer_utils import IntervalStrategy
-
-class CustomLoggingCallback(TrainerCallback):
-    def __init__(self):
-        super().__init__()
-        self.log_next = 1
-        self.eval_next = 1
-
-    def on_step_end(self, args, state, control, **kwargs):
-        # 在前16个step，每个step记录一次
-        if state.global_step < 16:
-            self.log_next = 1
-            self.eval_next = 16
-        # 之后的step每16个step记录一次
-        else:
-            self.log_next = 16
-            self.eval_next = 16
-
-        # 是否进行logging
-        if state.global_step % self.log_next == 0:
-            control.should_log = True
-
-        # 是否进行evaluation
-        if state.global_step % self.eval_next == 0:
-            control.should_evaluate = True
-
-# 初始化自定义的Callback
-custom_callback = CustomLoggingCallback()
 
 training_args = TrainingArguments(
     output_dir="./results",
@@ -116,8 +87,8 @@ training_args = TrainingArguments(
     push_to_hub=False,
     logging_dir='./logs',
     logging_steps=1,
-    evaluation_strategy=IntervalStrategy.STEPS,
-    logging_strategy=IntervalStrategy.STEPS,
+    evaluation_strategy=8,
+    logging_strategy=8,
     eval_steps=1,
     report_to="wandb",
     seed=3706,
@@ -133,7 +104,6 @@ trainer = Trainer(
     eval_dataset=news_encoded_dataset["test"],
     tokenizer=tokenizer,
     compute_metrics=compute_metrics,
-    callbacks=[custom_callback]
 )
 
 # # 开始emotion数据集的fine-tuning
