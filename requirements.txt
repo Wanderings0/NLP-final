@@ -1,0 +1,8 @@
+torch
+transformers
+datasets
+evaluate
+wandb
+numpy
+scikit-learn
+rouge-score

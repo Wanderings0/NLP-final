@@ -55,12 +55,12 @@ twice = args.twice
 if twice:
     print("We fune-tune the model twice")
     # after emotion fine-tuning
-    # local_model_path = "./model/news_after_emotion_tuned_t5"
-    # seq_class_model_dir = "./model/emotion_tuned_t5"
-    # num_labels = 6
+    local_model_path = "./model/news_after_emotion_tuned_t5"
+    seq_class_model_dir = "./model/emotion_tuned_t5"
+    num_labels = 6
     # after samsum fine-tuning
-    local_model_path = "./model/news_after_samsum_tuned_t5"
-    seq_class_model_dir = "./model/samsum_tuned_t5"
+    # local_model_path = "./model/news_after_samsum_tuned_t5"
+    # seq_class_model_dir = "./model/samsum_tuned_t5"
 
 
 model = T5ForSequenceClassification.from_pretrained(seq_class_model_dir,num_labels=num_labels,ignore_mismatched_sizes=True)
