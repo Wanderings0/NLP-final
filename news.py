@@ -6,6 +6,7 @@ import wandb
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
 import random
+import argparse
 
 def set_seed(seed):
     random.seed(seed)
@@ -15,10 +16,20 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark=False
     torch.backends.cudnn.deterministic=True
 
-seed = 3072
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--model_name", type=str, default="t5-base", help="the model name of the seq_class model")
+parser.add_argument("--twice", type=bool, default=False, help="whether to fine-tune the model twice")
+parser.add_argument("--lr", type=float, default=1e-4, help="the learning rate of the model")
+parser.add_argument("--batch_size", type=int, default=32, help="the batch size of the model")
+parser.add_argument("--seed", type=int, default=42, help="the seed of the model")
+parser.add_argument("--epoch", type=int, default=1, help="the epoch of the model")
+
+args = parser.parse_args()
+seed = args.seed
 set_seed(seed)
 
-model_name = "t5-base"
+model_name = args.model_name
 
 
 
@@ -40,7 +51,7 @@ news_dataset["train"] = news_dataset["train"].shuffle(seed=42).select(range(trai
 local_model_path = "./model/news_tuned_t5"
 seq_class_model_dir = "./model/t5_seq_class"
 
-twice = True
+twice = args.twice
 if twice:
     print("We fune-tune the model twice")
     # after emotion fine-tuning
@@ -87,10 +98,10 @@ def compute_metrics(p: EvalPrediction):
 
 training_args = TrainingArguments(
     output_dir="./results",
-    learning_rate=1e-4,
-    per_device_train_batch_size=32,
-    per_device_eval_batch_size=32,
-    num_train_epochs=1,
+    learning_rate=args.lr,
+    per_device_train_batch_size=args.batch_size,
+    per_device_eval_batch_size=args.batch_size,
+    num_train_epochs=args.epoch,
     lr_scheduler_type="cosine",
     weight_decay=1e-4,
     push_to_hub=False,
@@ -118,8 +129,8 @@ trainer = Trainer(
 # # 开始emotion数据集的fine-tuning
 trainer.train()
 # # Make sure the training has finished
-# trainer.save_model(local_model_path)
-# tokenizer.save_pretrained(local_model_path)
+trainer.save_model(local_model_path)
+tokenizer.save_pretrained(local_model_path)
 
 
 wandb.join()

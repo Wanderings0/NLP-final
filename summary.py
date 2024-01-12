@@ -4,21 +4,35 @@ from datasets import load_dataset, load_from_disk
 import evaluate
 from transformers import Trainer, TrainingArguments, EvalPrediction, DataCollatorForSeq2Seq
 import wandb
-import os
+import os,random
 import numpy as np
 from rouge_score import rouge_scorer, scoring
+import argparse
 
 def set_seed(seed):
+    random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-seed = 42
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark=False
+    torch.backends.cudnn.deterministic=True
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--model_name", type=str, default="t5-base", help="the model name of the seq_class model")
+parser.add_argument("--twice", type=bool, default=False, help="whether to fine-tune the model twice")
+parser.add_argument("--lr", type=float, default=2e-5, help="the learning rate of the model")
+parser.add_argument("--batch_size", type=int, default=24, help="the batch size of the model")
+parser.add_argument("--seed", type=int, default=42, help="the seed of the model")
+parser.add_argument("--epoch", type=int, default=3, help="the epoch of the model")
+
+args = parser.parse_args()
+seed = args.seed
 set_seed(seed)
 
 torch.cuda.empty_cache()
 
-model_name = "t5-base"
+model_name = args.model_name
 
 
 
@@ -31,7 +45,7 @@ samsum_dataset = load_from_disk("./data/samsum")
 # print(samsum_dataset["train"][0])
 local_model_path = "./model/samsum_tuned_t5"
 cond_gen_model_dir = "./model/t5_cond_gen"
-twice = True
+twice = args.twice
 if twice:
     print("We fune-tune the model twice")
     cond_gen_model_dir = "./model/emotion_tuned_t5"
@@ -69,10 +83,10 @@ data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
 training_args = TrainingArguments(
     output_dir="./results",
-    learning_rate=2e-5,
-    per_device_train_batch_size=24,
-    per_device_eval_batch_size=24,
-    num_train_epochs=3,
+    learning_rate=args.lr,
+    per_device_train_batch_size=args.batch_size,
+    per_device_eval_batch_size=args.batch_size,
+    num_train_epochs=args.epoch,
     weight_decay=1e-4,
     evaluation_strategy="steps",
     logging_dir='./logs',

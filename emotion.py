@@ -4,19 +4,32 @@ from datasets import load_dataset, load_from_disk
 import evaluate
 from transformers import Trainer, TrainingArguments, EvalPrediction
 import wandb
-import os
+import os,random
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
+import argparse
 
 def set_seed(seed):
+    random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark=False
+    torch.backends.cudnn.deterministic=True
 
-seed = 42
+parser = argparse.ArgumentParser()
+parser.add_argument("--model_name", type=str, default="t5-base", help="the model name of the seq_class model")
+parser.add_argument("--twice", type=bool, default=False, help="whether to fine-tune the model twice")
+parser.add_argument("--lr", type=float, default=1e-4, help="the learning rate of the model")
+parser.add_argument("--batch_size", type=int, default=32, help="the batch size of the model")
+parser.add_argument("--seed", type=int, default=42, help="the seed of the model")
+parser.add_argument("--epoch", type=int, default=3, help="the epoch of the model")
+
+args = parser.parse_args()
+seed = args.seed
 set_seed(seed)
 
-model_name = "t5-base"
+model_name = args.model_name
 
 
 label_map = {0: "sadness", 1: "joy", 2: "love", 3: "anger", 4: "fear", 5: "surprise"}
@@ -31,7 +44,7 @@ emotion_dataset = load_from_disk("./data/emotion")
 
 local_model_path = "./model/emotion_tuned_t5"
 seq_class_model_dir = "./model/t5_seq_class"
-twice = True
+twice = args.twice
 if twice:
     print("We fune-tune the model twice")
     seq_class_model_dir = "./model/news_tuned_t5"
@@ -65,10 +78,10 @@ def compute_metrics(p: EvalPrediction):
 
 training_args = TrainingArguments(
     output_dir="./results",
-    learning_rate=1e-4,
-    per_device_train_batch_size=32,
-    per_device_eval_batch_size=32,
-    num_train_epochs=3,
+    learning_rate=args.lr,
+    per_device_train_batch_size=args.batch_size,
+    per_device_eval_batch_size=args.batch_size,
+    num_train_epochs=args.epoch,
     lr_scheduler_type="cosine",
     weight_decay=1e-4,
     push_to_hub=False,
